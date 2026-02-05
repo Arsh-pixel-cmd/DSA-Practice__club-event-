@@ -36,7 +36,7 @@ Follow these steps to get the project running locally for development and collab
 ### 1. Clone the Repository
 Open your terminal and run:
 ```bash
-git clone https://github.com/Arsh-pixel-cmd/DSA-Practice__club-event-?tab=readme-ov-file
+git clone https://github.com/Arsh-pixel-cmd/DSA-Practice__club-event-.git
 cd DSA-Practice__club-event-
 ```
 
