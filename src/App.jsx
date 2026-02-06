@@ -8,10 +8,47 @@ import { useAntiCheat } from './hooks/useAntiCheat';
 import { LANGUAGES, INITIAL_QUESTIONS, INITIAL_LEADERBOARD } from './lib/constants';
 import { executeCodeAction } from './lib/actions';
 
+// Default code templates for each language
+const getDefaultCode = (languageId) => {
+    const templates = {
+        63: `// JavaScript/Node.js Solution
+function solve() {
+    // Your solution here
+    return "Hello World";
+}
+
+console.log(solve());`,
+        71: `# Python 3 Solution
+def solve():
+    # Your solution here
+    return "Hello World"
+
+if __name__ == "__main__":
+    print(solve())`,
+        54: `// C++ Solution
+#include <iostream>
+using namespace std;
+
+int main() {
+    // Your solution here
+    cout << "Hello World" << endl;
+    return 0;
+}`,
+        62: `// Java Solution
+public class Main {
+    public static void main(String[] args) {
+        // Your solution here
+        System.out.println("Hello World");
+    }
+}`,
+    };
+    return templates[languageId] || '// Start typing your solution...';
+};
+
 export default function App() {
     const [view, setView] = useState('landing'); // landing, exam, admin
     const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
-    const [code, setCode] = useState('// Start typing your solution...');
+    const [code, setCode] = useState(getDefaultCode(LANGUAGES[0].id));
     const [isExamStarted, setIsExamStarted] = useState(false);
     const [output, setOutput] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
@@ -77,6 +114,7 @@ export default function App() {
                     output={output}
                     leaderboard={leaderboard}
                     requestFullscreen={requestFullscreen}
+                    onLanguageChange={(langId) => setCode(getDefaultCode(langId))}
                 />
             )}
 
