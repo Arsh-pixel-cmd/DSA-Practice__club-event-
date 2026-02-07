@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import Navbar from './components/layout/Navbar';
 import Landing from './components/views/Landing';
 import Admin from './components/views/Admin';
+import StudentDashboard from './components/views/StudentDashboard';
+import ProblemWorkspace from './components/views/ProblemWorkspace';
 import ExamWorkspace from './components/exam/ExamWorkspace';
 import WarningOverlay from './components/exam/WarningOverlay';
 import { useAntiCheat } from './hooks/useAntiCheat';
@@ -46,25 +48,35 @@ public class Main {
 };
 
 export default function App() {
-    const [view, setView] = useState('landing'); // landing, exam, admin
+    const [view, setView] = useState('student-dashboard'); // landing, exam, admin, student-dashboard, problem
+    const [selectedProblem, setSelectedProblem] = useState(null);
     const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
     const [code, setCode] = useState(getDefaultCode(LANGUAGES[0].id));
     const [isExamStarted, setIsExamStarted] = useState(false);
     const [output, setOutput] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
 
-    // Mock Data
-    const [questions] = useState(INITIAL_QUESTIONS);
+    // Mock Data - Initialize from localStorage if available
+    const [questions, setQuestions] = useState(() => {
+        const saved = localStorage.getItem('dsa-questions');
+        return saved ? JSON.parse(saved) : INITIAL_QUESTIONS;
+    });
     const [leaderboard, setLeaderboard] = useState(INITIAL_LEADERBOARD);
 
-    // Anti-Cheat Hook
+    // Persist questions to localStorage
+    React.useEffect(() => {
+        localStorage.setItem('dsa-questions', JSON.stringify(questions));
+    }, [questions]);
+
+    // Anti-Cheat Hook - only monitor when in exam view
     const { warnings, setWarnings, isFullscreen, requestFullscreen } = useAntiCheat(
         isExamStarted,
         () => { // onViolation limit reached
             setIsExamStarted(false);
             setView('landing');
             alert("Disqualified: Maximum tab switches exceeded.");
-        }
+        },
+        view === 'exam' // Only monitor when in exam view
     );
 
     // Start Exam
@@ -72,6 +84,21 @@ export default function App() {
         setIsExamStarted(true);
         setView('exam');
         requestFullscreen();
+    };
+
+    // Add Question Handler
+    const handleAddQuestion = (newQuestion) => {
+        setQuestions(prev => [...prev, newQuestion]);
+    };
+
+    // Update Question Handler
+    const handleUpdateQuestion = (updatedQuestion) => {
+        setQuestions(prev => prev.map(q => q.id === updatedQuestion.id ? updatedQuestion : q));
+    };
+
+    // Delete Question Handler
+    const handleDeleteQuestion = (questionId) => {
+        setQuestions(prev => prev.filter(q => q.id !== questionId));
     };
 
     // Run Code
@@ -120,7 +147,37 @@ export default function App() {
 
             {/* VIEW: ADMIN PANEL */}
             {view === 'admin' && (
-                <Admin questions={questions} leaderboard={leaderboard} />
+                <Admin
+                    questions={questions}
+                    leaderboard={leaderboard}
+                    onAddQuestion={handleAddQuestion}
+                    onUpdateQuestion={handleUpdateQuestion}
+                    onDeleteQuestion={handleDeleteQuestion}
+                />
+            )}
+
+            {/* VIEW: STUDENT DASHBOARD */}
+            {view === 'student-dashboard' && (
+                <StudentDashboard
+                    questions={questions}
+                    userStats={leaderboard.find(u => u.name.includes('You'))}
+                    onOpenProblem={(problem) => {
+                        setSelectedProblem(problem);
+                        setView('problem');
+                    }}
+                />
+            )}
+
+            {/* VIEW: PROBLEM WORKSPACE */}
+            {view === 'problem' && selectedProblem && (
+                <ProblemWorkspace
+                    problem={selectedProblem}
+                    userStats={leaderboard.find(u => u.name.includes('You'))}
+                    onBack={() => {
+                        setSelectedProblem(null);
+                        setView('student-dashboard');
+                    }}
+                />
             )}
 
             {/* WARNING OVERLAY */}

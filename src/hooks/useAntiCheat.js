@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-export function useAntiCheat(isExamStarted, onViolation) {
+export function useAntiCheat(isExamStarted, onViolation, shouldMonitor = true) {
     const [warnings, setWarnings] = useState(0);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -13,7 +13,7 @@ export function useAntiCheat(isExamStarted, onViolation) {
 
     useEffect(() => {
         const handleVisibilityChange = () => {
-            if (isExamStarted && document.visibilityState === 'hidden') {
+            if (shouldMonitor && isExamStarted && document.visibilityState === 'hidden') {
                 setWarnings(prev => {
                     const next = prev + 1;
                     // Notify parent component if violation limit reached, but manage state locally too
@@ -33,7 +33,7 @@ export function useAntiCheat(isExamStarted, onViolation) {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             document.removeEventListener('fullscreenchange', handleFSChange);
         };
-    }, [isExamStarted, onViolation]);
+    }, [isExamStarted, onViolation, shouldMonitor]);
 
     return {
         warnings,

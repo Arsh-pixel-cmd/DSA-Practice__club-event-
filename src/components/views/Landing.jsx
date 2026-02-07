@@ -11,7 +11,7 @@ const Landing = ({ questions, startExam }) => {
             </motion.div>
 
             <div className="grid gap-4">
-                {questions.map((q) => (
+                {questions.filter(q => q.status !== 'Draft').map((q) => (
                     <motion.div
                         key={q.id}
                         whileHover={{ scale: 1.01 }}
