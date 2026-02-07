@@ -1,7 +1,7 @@
 import React from 'react';
 import { Monitor, AlertCircle } from 'lucide-react';
 import { LANGUAGES } from '../../lib/constants';
-import Editor from './Editor';
+import CodeEditor from './Editor';
 import Terminal from './Terminal';
 import Leaderboard from './Leaderboard';
 
@@ -16,7 +16,8 @@ const ExamWorkspace = ({
     runCode,
     output,
     leaderboard,
-    requestFullscreen
+    requestFullscreen,
+    onLanguageChange
 }) => {
     return (
         <div className="flex flex-col gap-6 h-[calc(100vh-160px)]">
@@ -28,7 +29,13 @@ const ExamWorkspace = ({
                         <select
                             className="bg-slate-800 border-none rounded text-xs px-2 py-1 font-bold text-indigo-400 focus:ring-0"
                             value={selectedLang.id}
-                            onChange={(e) => setSelectedLang(LANGUAGES.find(l => l.id === parseInt(e.target.value)))}
+                            onChange={(e) => {
+                                const newLang = LANGUAGES.find(l => l.id === parseInt(e.target.value));
+                                setSelectedLang(newLang);
+                                if (onLanguageChange) {
+                                    onLanguageChange(newLang.id);
+                                }
+                            }}
                         >
                             {LANGUAGES.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
                         </select>
@@ -48,7 +55,7 @@ const ExamWorkspace = ({
             <div className="flex-1 grid grid-cols-12 gap-6 overflow-hidden">
                 {/* Editor Area */}
                 <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
-                    <Editor
+                    <CodeEditor
                         code={code}
                         setCode={setCode}
                         isRunning={isRunning}

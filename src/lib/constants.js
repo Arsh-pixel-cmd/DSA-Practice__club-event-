@@ -1,8 +1,8 @@
 export const LANGUAGES = [
-  { id: 63, name: 'JavaScript', label: 'Node.js' },
-  { id: 71, name: 'Python', label: 'Python 3.8' },
-  { id: 54, name: 'C++', label: 'GCC 9.2.0' },
-  { id: 62, name: 'Java', label: 'OpenJDK 13' },
+  { id: 63, name: 'JavaScript', label: 'JavaScript' },
+  { id: 71, name: 'Python', label: 'Python' },
+  { id: 54, name: 'C++', label: 'C++' },
+  { id: 62, name: 'Java', label: 'Java' },
 ];
 
 export const INITIAL_QUESTIONS = [
