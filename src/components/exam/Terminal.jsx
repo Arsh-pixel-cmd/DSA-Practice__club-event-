@@ -21,11 +21,11 @@ const Terminal = ({ output }) => {
             <div className="space-y-2">
                 <div className={`font-bold ${getStatusColor(output.status.id)}`}>
                     {output.status.description}
-                    {output.time && output.time !== '0.000' && (
-                        <span className="text-slate-500 ml-2">({output.time}s)</span>
+                    {(output.runtime || (output.time && output.time !== '0.000')) && (
+                        <span className="text-slate-500 ml-2">({output.runtime || output.time}s)</span>
                     )}
-                    {output.memory && output.memory !== '0' && (
-                        <span className="text-slate-500 ml-2">({Math.round(output.memory / 1024)}KB)</span>
+                    {(output.memory && output.memory !== 0 && output.memory !== '0') && (
+                        <span className="text-slate-500 ml-2">({Math.round(output.memory)}KB)</span>
                     )}
                 </div>
                 {hasError && output.stderr && (

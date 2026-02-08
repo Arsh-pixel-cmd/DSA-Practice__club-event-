@@ -93,8 +93,23 @@ export default function App() {
                 .select('*')
                 .order('id', { ascending: true });
 
-            if (error) console.error('Error fetching questions:', error);
-            else setQuestions(data || []);
+            if (error) {
+                console.error('Error fetching questions:', error);
+            } else if (data) {
+                // Deduplicate by title
+                const uniqueQuestions = [];
+                const seenTitles = new Set();
+
+                data.forEach(q => {
+                    const normalizedTitle = q.title.trim().toLowerCase();
+                    if (!seenTitles.has(normalizedTitle)) {
+                        seenTitles.add(normalizedTitle);
+                        uniqueQuestions.push(q);
+                    }
+                });
+
+                setQuestions(uniqueQuestions);
+            }
         };
 
         fetchQuestions();
@@ -206,6 +221,7 @@ export default function App() {
                         {/* Dashboard is the new Home */}
                         <Route path="/" element={
                             <StudentDashboard
+                                user={user}
                                 questions={questions}
                                 userStats={leaderboard.find(u => u.name.includes('You'))}
                                 onOpenProblem={(problem) => {

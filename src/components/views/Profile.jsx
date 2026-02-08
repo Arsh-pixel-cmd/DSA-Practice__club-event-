@@ -61,9 +61,21 @@ const Profile = () => {
 
                 const { data: questions } = await supabase
                     .from('questions')
-                    .select('id, difficulty');
+                    .select('id, difficulty, title');
+
+                const uniqueQuestions = [];
+                const seenTitles = new Set();
 
                 questions?.forEach(q => {
+                    // Deduplicate for accurate stats
+                    const normalizedTitle = q.title?.trim().toLowerCase();
+                    if (normalizedTitle && !seenTitles.has(normalizedTitle)) {
+                        seenTitles.add(normalizedTitle);
+                        uniqueQuestions.push(q);
+                    }
+                });
+
+                uniqueQuestions.forEach(q => {
                     const diff = q.difficulty?.toLowerCase() || 'easy';
                     if (newStats[diff]) {
                         newStats[diff].total++;

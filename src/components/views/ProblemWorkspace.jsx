@@ -364,8 +364,8 @@ const ProblemWorkspace = ({ userStats, onBack }) => {
 
                                             <div className="bg-slate-950 p-4 rounded-xl border border-emerald-500/20 space-y-2">
                                                 <div className="flex gap-2 text-xs text-slate-500 mb-2">
-                                                    <span>Runtime: {output.time}s</span>
-                                                    <span>Memory: {Math.round(output.memory / 1024)}KB</span>
+                                                    <span>Runtime: {output.runtime || output.time || '0.00'}s</span>
+                                                    <span>Memory: {output.memory ? Math.round(output.memory) : 0}KB</span>
                                                 </div>
                                                 <div className="text-slate-300 whitespace-pre-wrap">{output.stdout}</div>
                                             </div>

@@ -60,12 +60,13 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
     );
 };
 
-const DashboardView = ({ questions, userStats, setActiveTab, onOpenProblem }) => {
+const DashboardView = ({ questions, stats, setActiveTab, onOpenProblem }) => {
     return (
         <div className="ml-64 p-8">
             {/* Topbar */}
             <header className="flex justify-between items-center mb-10">
                 <h1 className="text-2xl font-bold text-white tracking-tight">Dashboard</h1>
+                {/* ... existing header content ... */}
                 <div className="flex items-center gap-6">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
@@ -86,34 +87,34 @@ const DashboardView = ({ questions, userStats, setActiveTab, onOpenProblem }) =>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
                 <StatCard
                     label="Problems Solved"
-                    value="3/12"
+                    value={`${stats?.solved || 0}/${stats?.total || 0}`}
                     subtext="Problems Solved"
                     icon={<Code2 size={24} className="text-indigo-400" />}
-                    progress={25}
+                    progress={stats?.total ? (stats.solved / stats.total) * 100 : 0}
                     color="indigo"
                 />
                 <StatCard
                     label="Success Rate"
-                    value="25%"
+                    value={`${stats?.successRate || 0}%`}
                     subtext="Success Rate"
                     icon={<CheckCircle size={24} className="text-emerald-400" />}
-                    progress={25}
+                    progress={stats?.successRate || 0}
                     color="emerald"
                 />
                 <StatCard
                     label="Global Ranking"
-                    value="#1,247"
+                    value={stats?.rank || '-'}
                     subtext="Ranking"
                     icon={<LayoutDashboard size={24} className="text-amber-400" />}
-                    progress={75}
+                    progress={75} // Placeholder progress for rank
                     color="amber"
                 />
                 <StatCard
-                    label="Weekly Streak"
-                    value="7 days"
-                    subtext="Weekly Streak"
+                    label="Current Streak"
+                    value={`${stats?.streak || 0} days`}
+                    subtext="Daily Streak"
                     icon={<LayoutDashboard size={24} className="text-purple-400" />}
-                    progress={100}
+                    progress={Math.min((stats?.streak || 0) * 14, 100)} // Visual approximation
                     color="purple"
                 />
             </div>
@@ -257,13 +258,103 @@ const ProblemsView = ({ questions, onOpenProblem }) => {
     );
 };
 
-const StudentDashboard = ({ questions, userStats, onOpenProblem }) => {
+import { supabase } from '../../lib/supabase';
+
+// ... existing imports ...
+
+// Helper function to calculate streak (moved outside or kept inside)
+const calculateStreak = (dates) => {
+    if (!dates.length) return 0;
+
+    // Sort dates descending
+    const sortedDates = [...new Set(dates.map(d => new Date(d).toDateString()))]
+        .map(d => new Date(d))
+        .sort((a, b) => b - a);
+
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if the most recent submission was today or yesterday to keep streak alive
+    const lastSub = sortedDates[0];
+    const diffDays = Math.floor((today - lastSub) / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 1) return 0; // Streak broken if last sub was before yesterday
+
+    streak = 1;
+    for (let i = 0; i < sortedDates.length - 1; i++) {
+        const curr = sortedDates[i];
+        const next = sortedDates[i + 1];
+        const diff = Math.floor((curr - next) / (1000 * 60 * 60 * 24));
+
+        if (diff === 1) {
+            streak++;
+        } else {
+            break;
+        }
+    }
+    return streak;
+};
+
+const StudentDashboard = ({ user, questions, onOpenProblem }) => {
     const [activeTab, setActiveTab] = React.useState('dashboard');
+    const [stats, setStats] = React.useState({
+        solved: 0,
+        total: questions.length,
+        successRate: 0,
+        rank: '-',
+        streak: 0
+    });
+
+    React.useEffect(() => {
+        const fetchStats = async () => {
+            if (!user) return;
+
+            try {
+                // 1. Fetch User Submissions
+                const { data: submissions } = await supabase
+                    .from('submissions')
+                    .select('question_id, status, created_at')
+                    .eq('user_id', user.id);
+
+                const acceptedSubs = submissions?.filter(s => s.status === 'Accepted') || [];
+                const uniqueSolved = new Set(acceptedSubs.map(s => s.question_id));
+                const totalSubmissions = submissions?.length || 0;
+
+                // 2. Fetch Leaderboard (Rank)
+                // Assuming rank is based on score, or solved count if score not implemented
+                const { data: profiles } = await supabase
+                    .from('profiles')
+                    .select('id, score')
+                    .order('score', { ascending: false });
+
+                const userRankIndex = profiles?.findIndex(p => p.id === user.id);
+                const rank = userRankIndex !== -1 ? `#${userRankIndex + 1}` : '-';
+
+                // 3. Calculate Streak
+                const activityDates = acceptedSubs.map(s => s.created_at);
+                const streak = calculateStreak(activityDates);
+
+                setStats({
+                    solved: uniqueSolved.size,
+                    total: questions.length, // Total available questions
+                    successRate: totalSubmissions > 0 ? Math.round((acceptedSubs.length / totalSubmissions) * 100) : 0,
+                    rank: rank,
+                    streak: streak
+                });
+
+            } catch (error) {
+                console.error("Error fetching dashboard stats:", error);
+            }
+        };
+
+        fetchStats();
+    }, [user, questions.length]);
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-200 font-sans">
             <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-            {activeTab === 'dashboard' && <DashboardView questions={questions} userStats={userStats} setActiveTab={setActiveTab} onOpenProblem={onOpenProblem} />}
+            {activeTab === 'dashboard' && <DashboardView questions={questions} stats={stats} setActiveTab={setActiveTab} onOpenProblem={onOpenProblem} />}
             {activeTab === 'problems' && <ProblemsView questions={questions} onOpenProblem={onOpenProblem} />}
         </div>
     );
