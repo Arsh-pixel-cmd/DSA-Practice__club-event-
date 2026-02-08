@@ -1,18 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
-import Landing from './components/views/Landing';
-import Admin from './components/views/Admin';
-import StudentDashboard from './components/views/StudentDashboard';
-import ProblemWorkspace from './components/views/ProblemWorkspace';
-import ExamWorkspace from './components/exam/ExamWorkspace';
-import WarningOverlay from './components/exam/WarningOverlay';
 import Login from './components/views/Login';
 import AdminGuard from './components/auth/AdminGuard';
 import { useAntiCheat } from './hooks/useAntiCheat';
 import { LANGUAGES, INITIAL_QUESTIONS, INITIAL_LEADERBOARD } from './lib/constants';
 import { executeCodeAction } from './lib/actions';
 import { supabase } from './lib/supabase';
+
+// Lazy load components for code splitting
+const Landing = React.lazy(() => import('./components/views/Landing'));
+const Admin = React.lazy(() => import('./components/views/Admin'));
+const StudentDashboard = React.lazy(() => import('./components/views/StudentDashboard'));
+const ProblemWorkspace = React.lazy(() => import('./components/views/ProblemWorkspace'));
+const ExamWorkspace = React.lazy(() => import('./components/exam/ExamWorkspace'));
+const WarningOverlay = React.lazy(() => import('./components/exam/WarningOverlay'));
+
+// Loading component
+const Loading = () => (
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">
+        Loading...
+    </div>
+);
 
 // Default code templates for each language
 const getDefaultCode = (languageId) => {
@@ -153,80 +162,84 @@ export default function App() {
                 />
             )}
 
-            <Routes>
-                {/* Public Routes */}
-                <Route path="/login" element={
-                    isAuthenticated ? <Navigate to="/" replace /> : <Login />
-                } />
-
-                {/* Public Landing (The old Landing.jsx) - renaming route to /welcome for clarity or keeping as option */}
-                <Route path="/welcome" element={<Landing questions={questions} startExam={startExam} />} />
-
-                {/* Protected Routes - Student */}
-                <Route element={<ProtectedLayout isAuthenticated={isAuthenticated} isAdmin={isAdmin} />}>
-                    {/* Dashboard is the new Home */}
-                    <Route path="/" element={
-                        <StudentDashboard
-                            questions={questions}
-                            userStats={leaderboard.find(u => u.name.includes('You'))}
-                            onOpenProblem={(problem) => {
-                                setSelectedProblem(problem);
-                                navigate(`/problem/${problem.id}`);
-                            }}
-                        />
+            <Suspense fallback={<Loading />}>
+                <Routes>
+                    {/* Public Routes */}
+                    <Route path="/login" element={
+                        isAuthenticated ? <Navigate to="/" replace /> : <Login />
                     } />
 
-                    <Route path="/problem/:id" element={
-                        <ProblemWorkspace
-                            // We will need to resolve the problem from ID inside the component or here
-                            // For now passing "selectedProblem" state, but ideal is to read from URL params inside component
-                            problem={selectedProblem || questions[0]} // Fallback if direct access (to be fixed)
-                            userStats={leaderboard.find(u => u.name.includes('You'))}
-                            onBack={() => navigate('/')}
-                        />
-                    } />
+                    {/* Public Landing (The old Landing.jsx) - renaming route to /welcome for clarity or keeping as option */}
+                    <Route path="/welcome" element={<Landing questions={questions} startExam={startExam} />} />
 
-                    <Route path="/exam" element={
-                        <ExamWorkspace
-                            selectedLang={selectedLang}
-                            setSelectedLang={setSelectedLang}
-                            isFullscreen={isFullscreen}
-                            warnings={warnings}
-                            code={code}
-                            setCode={setCode}
-                            isRunning={isRunning}
-                            runCode={runCode}
-                            output={output}
-                            leaderboard={leaderboard}
-                            requestFullscreen={requestFullscreen}
-                            onLanguageChange={(langId) => setCode(getDefaultCode(langId))}
-                        />
-                    } />
-                </Route>
+                    {/* Protected Routes - Student */}
+                    <Route element={<ProtectedLayout isAuthenticated={isAuthenticated} isAdmin={isAdmin} />}>
+                        {/* Dashboard is the new Home */}
+                        <Route path="/" element={
+                            <StudentDashboard
+                                questions={questions}
+                                userStats={leaderboard.find(u => u.name.includes('You'))}
+                                onOpenProblem={(problem) => {
+                                    setSelectedProblem(problem);
+                                    navigate(`/problem/${problem.id}`);
+                                }}
+                            />
+                        } />
 
-                {/* Protected Routes - Admin */}
-                <Route element={<AdminGuard isAdmin={isAdmin} />}>
-                    <Route path="/admin" element={
-                        <Admin
-                            questions={questions}
-                            leaderboard={leaderboard}
-                            onAddQuestion={(q) => setQuestions(prev => [...prev, q])}
-                            onUpdateQuestion={(q) => setQuestions(prev => prev.map(old => old.id === q.id ? q : old))}
-                            onDeleteQuestion={(id) => setQuestions(prev => prev.filter(q => q.id !== id))}
-                        />
-                    } />
-                </Route>
+                        <Route path="/problem/:id" element={
+                            <ProblemWorkspace
+                                // We will need to resolve the problem from ID inside the component or here
+                                // For now passing "selectedProblem" state, but ideal is to read from URL params inside component
+                                problem={selectedProblem || questions[0]} // Fallback if direct access (to be fixed)
+                                userStats={leaderboard.find(u => u.name.includes('You'))}
+                                onBack={() => navigate('/')}
+                            />
+                        } />
 
-                {/* Catch all */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+                        <Route path="/exam" element={
+                            <ExamWorkspace
+                                selectedLang={selectedLang}
+                                setSelectedLang={setSelectedLang}
+                                isFullscreen={isFullscreen}
+                                warnings={warnings}
+                                code={code}
+                                setCode={setCode}
+                                isRunning={isRunning}
+                                runCode={runCode}
+                                output={output}
+                                leaderboard={leaderboard}
+                                requestFullscreen={requestFullscreen}
+                                onLanguageChange={(langId) => setCode(getDefaultCode(langId))}
+                            />
+                        } />
+                    </Route>
+
+                    {/* Protected Routes - Admin */}
+                    <Route element={<AdminGuard isAdmin={isAdmin} />}>
+                        <Route path="/admin" element={
+                            <Admin
+                                questions={questions}
+                                leaderboard={leaderboard}
+                                onAddQuestion={(q) => setQuestions(prev => [...prev, q])}
+                                onUpdateQuestion={(q) => setQuestions(prev => prev.map(old => old.id === q.id ? q : old))}
+                                onDeleteQuestion={(id) => setQuestions(prev => prev.filter(q => q.id !== id))}
+                            />
+                        } />
+                    </Route>
+
+                    {/* Catch all */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+            </Suspense>
 
             {/* Warning Overlay */}
-            <WarningOverlay
-                warnings={warnings}
-                isExamStarted={isExamStarted}
-                onResume={() => { setWarnings(0); requestFullscreen(); }}
-            />
+            <Suspense fallback={null}>
+                <WarningOverlay
+                    warnings={warnings}
+                    isExamStarted={isExamStarted}
+                    onResume={() => { setWarnings(0); requestFullscreen(); }}
+                />
+            </Suspense>
 
             <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }

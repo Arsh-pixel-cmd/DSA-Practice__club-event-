@@ -4,6 +4,7 @@ import Editor from '@monaco-editor/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LANGUAGES, INITIAL_QUESTIONS } from '../../lib/constants';
+import { supabase } from '../../lib/supabase';
 
 const LANGUAGE_CONFIG = {
     63: { name: 'javascript', label: 'JS', extension: 'js' },
@@ -67,20 +68,58 @@ const ProblemWorkspace = ({ userStats, onBack }) => {
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     };
 
-    // Mock running code
-    const handleRun = () => {
+
+    // Real code execution logic
+    const handleRun = async (isSubmission = false) => {
         setIsRunning(true);
         setActiveTab('output');
-        setTimeout(() => {
-            setIsRunning(false);
+        setOutput(null); // Clear previous output
+
+        try {
+            // Import dynamically to avoid circular deps if any, but standard import is fine
+            const { executeCode, saveSubmission } = await import('../../lib/codeExecution');
+
+            // Execute Code (Judge0 -> AI Fallback)
+            const result = await executeCode(code, language.name, problem);
+
+            setOutput(result);
+
+            // If it's a submission and user is logged in, save it
+            if (isSubmission && userStats) { // userStats currently passed from App.jsx, might need real user ID
+                // Ideally we get user from context or prop. userStats is from leaderboard finding.
+                // Let's rely on supabase auth user in lib.
+                const { data: { user } } = await supabase.auth.getUser();
+
+                if (user) {
+                    await saveSubmission(user.id, problem.id, code, language.name, result);
+                    // Refresh data? 
+                    // in a real app query invalidation. For now, maybe just show success.
+                }
+            }
+
+        } catch (error) {
+            console.error("Execution failed:", error);
             setOutput({
-                status: { id: 3, description: 'Accepted' },
-                stdout: 'Input: [2, 7, 11, 15], target = 9\nOutput: [0, 1]\nExpected: [0, 1]',
-                time: '0.045',
-                memory: '4120'
+                status: 'Error',
+                score: 0,
+                feedback: 'Execution failed: ' + error.message
             });
-        }, 1500);
+        } finally {
+            setIsRunning(false);
+        }
     };
+    <button
+        onClick={() => handleRun(false)}
+        disabled={isRunning}
+        className="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-all text-xs font-bold shadow-lg shadow-indigo-900/20"
+    >
+        {isRunning ? (
+            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+        ) : (
+            <Play size={14} fill="currentColor" />
+        )}
+        Run Code
+    </button>
 
     if (!problem) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading problem...</div>;
 
@@ -125,9 +164,13 @@ const ProblemWorkspace = ({ userStats, onBack }) => {
                         <RotateCcw size={16} />
                         Reset
                     </button>
-                    <button className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-colors text-sm font-bold shadow-lg shadow-emerald-900/20">
+                    <button
+                        onClick={() => handleRun(true)}
+                        disabled={isRunning}
+                        className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-colors text-sm font-bold shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                         <CheckCircle size={16} />
-                        Submit
+                        {isRunning ? 'Submitting...' : 'Submit'}
                     </button>
                 </div>
             </header>
