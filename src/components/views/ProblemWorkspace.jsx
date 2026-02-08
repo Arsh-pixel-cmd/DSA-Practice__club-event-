@@ -2,15 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Clock, RotateCcw, Play, CheckCircle, ChevronDown, Check } from 'lucide-react';
 import Editor from '@monaco-editor/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LANGUAGES } from '../../lib/constants';
+import { useParams, useNavigate } from 'react-router-dom';
+import { LANGUAGES, INITIAL_QUESTIONS } from '../../lib/constants';
 
-const ProblemWorkspace = ({ problem, onBack, userStats }) => {
-    const [code, setCode] = useState('// Write your solution here\nfunction solution() {\n\n}');
+const LANGUAGE_CONFIG = {
+    63: { name: 'javascript', label: 'JS', extension: 'js' },
+    71: { name: 'python', label: 'PY', extension: 'py' },
+    54: { name: 'cpp', label: 'CPP', extension: 'cpp' },
+    62: { name: 'java', label: 'JAVA', extension: 'java' }
+};
+
+const getDefaultCode = (langId, title) => {
+    switch (langId) {
+        case 63: return `// Write your JavaScript solution for ${title}\nfunction solution() {\n    // Your code here\n}`;
+        case 71: return `# Write your Python solution for ${title}\ndef solution():\n    # Your code here\n    pass`;
+        case 54: return `// Write your C++ solution for ${title}\nclass Solution {\npublic:\n    void solve() {\n        // Your code here\n    }\n};`;
+        case 62: return `// Write your Java solution for ${title}\nclass Solution {\n    public void solve() {\n        // Your code here\n    }\n}`;
+        default: return '// Write your solution here';
+    }
+};
+
+const ProblemWorkspace = ({ userStats, onBack }) => {
+    const { id } = useParams();
+    const navigate = useNavigate();
+
+    // In a real app, fetch problem by ID. Here we find it from constants or local storage
+    const [problem, setProblem] = useState(null);
+
+    useEffect(() => {
+        // Fallback to find problem if not passed directly (simulate fetch)
+        const savedQuestions = localStorage.getItem('dsa-questions');
+        const allQuestions = savedQuestions ? JSON.parse(savedQuestions) : INITIAL_QUESTIONS;
+        const found = allQuestions.find(q => q.id === parseInt(id));
+
+        if (found) {
+            setProblem(found);
+            setCode(getDefaultCode(LANGUAGES[0].id, found.title));
+        } else {
+            // Handle not found
+            navigate('/');
+        }
+    }, [id, navigate]);
+
     const [language, setLanguage] = useState(LANGUAGES[0]); // Default JavaScript
+    const [code, setCode] = useState(''); // Init empty, set in useEffect
     const [activeTab, setActiveTab] = useState('case1');
     const [isRunning, setIsRunning] = useState(false);
     const [output, setOutput] = useState(null);
     const [time, setTime] = useState(0);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     // Timer effect
     useEffect(() => {
@@ -41,6 +81,10 @@ const ProblemWorkspace = ({ problem, onBack, userStats }) => {
             });
         }, 1500);
     };
+
+    if (!problem) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading problem...</div>;
+
+    const currentLangConfig = LANGUAGE_CONFIG[language.id];
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col">
@@ -145,17 +189,49 @@ const ProblemWorkspace = ({ problem, onBack, userStats }) => {
                     <div className="h-12 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4">
                         {/* File Tab */}
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-t-lg text-sm text-slate-200 border-t border-x border-slate-700 relative top-1">
-                            <span className="text-indigo-400">JS</span>
-                            <span className="font-medium">solution.js</span>
+                            <span className="text-indigo-400">{currentLangConfig.label}</span>
+                            <span className="font-medium">solution.{currentLangConfig.extension}</span>
                         </div>
 
                         <div className="flex items-center gap-3">
-                            <div className="relative group">
-                                <button className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold text-slate-300 transition-colors">
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                    // onBlur needs to be handled carefully with clicking inside the dropdown
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold text-slate-300 transition-colors"
+                                >
                                     {language.label}
-                                    <ChevronDown size={14} />
+                                    <ChevronDown size={14} className={`transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                                 </button>
-                                {/* Dropdown would go here */}
+
+                                <AnimatePresence>
+                                    {isDropdownOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 10 }}
+                                            className="absolute top-full right-0 mt-2 w-48 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl z-50 p-1"
+                                        >
+                                            {LANGUAGES.map((lang) => (
+                                                <button
+                                                    key={lang.id}
+                                                    onClick={() => {
+                                                        setLanguage(lang);
+                                                        setCode(getDefaultCode(lang.id, problem.title));
+                                                        setIsDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full text-left px-4 py-2 text-xs font-bold rounded-lg transition-colors flex items-center justify-between ${language.id === lang.id
+                                                        ? 'bg-indigo-600 text-white'
+                                                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                                                        }`}
+                                                >
+                                                    {lang.label}
+                                                    {language.id === lang.id && <Check size={14} />}
+                                                </button>
+                                            ))}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
                             </div>
 
                             <button
@@ -177,7 +253,7 @@ const ProblemWorkspace = ({ problem, onBack, userStats }) => {
                     <div className="flex-1 overflow-hidden">
                         <Editor
                             height="100%"
-                            defaultLanguage="javascript" // Fixed for demo, should be dynamic
+                            language={currentLangConfig.name}
                             value={code}
                             onChange={(value) => setCode(value || '')}
                             theme="vs-dark"

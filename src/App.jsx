@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import Navbar from './components/layout/Navbar';
 import Landing from './components/views/Landing';
 import Admin from './components/views/Admin';
@@ -6,9 +7,11 @@ import StudentDashboard from './components/views/StudentDashboard';
 import ProblemWorkspace from './components/views/ProblemWorkspace';
 import ExamWorkspace from './components/exam/ExamWorkspace';
 import WarningOverlay from './components/exam/WarningOverlay';
+import Login from './components/views/Login';
 import { useAntiCheat } from './hooks/useAntiCheat';
 import { LANGUAGES, INITIAL_QUESTIONS, INITIAL_LEADERBOARD } from './lib/constants';
 import { executeCodeAction } from './lib/actions';
+import { supabase } from './lib/supabase';
 
 // Default code templates for each language
 const getDefaultCode = (languageId) => {
@@ -47,8 +50,42 @@ public class Main {
     return templates[languageId] || '// Start typing your solution...';
 };
 
+// Protected Layout Component
+const ProtectedLayout = ({ isAuthenticated, children }) => {
+    if (!isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+    return children ? children : <Outlet />;
+};
+
 export default function App() {
-    const [view, setView] = useState('student-dashboard'); // landing, exam, admin, student-dashboard, problem
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    // Global State
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [user, setUser] = useState(null);
+
+    // Auth Listener
+    useEffect(() => {
+        // Check active session
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            setIsAuthenticated(!!session);
+            setUser(session?.user ?? null);
+            setIsLoading(false);
+        });
+
+        // Listen for changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setIsAuthenticated(!!session);
+            setUser(session?.user ?? null);
+            setIsLoading(false);
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
     const [selectedProblem, setSelectedProblem] = useState(null);
     const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
     const [code, setCode] = useState(getDefaultCode(LANGUAGES[0].id));
@@ -64,41 +101,36 @@ export default function App() {
     const [leaderboard, setLeaderboard] = useState(INITIAL_LEADERBOARD);
 
     // Persist questions to localStorage
-    React.useEffect(() => {
+    useEffect(() => {
         localStorage.setItem('dsa-questions', JSON.stringify(questions));
     }, [questions]);
 
-    // Anti-Cheat Hook - only monitor when in exam view
+    // Anti-Cheat Hook - currently only relevant for Exam View
     const { warnings, setWarnings, isFullscreen, requestFullscreen } = useAntiCheat(
         isExamStarted,
         () => { // onViolation limit reached
             setIsExamStarted(false);
-            setView('landing');
+            navigate('/landing'); // Redirect to public landing
             alert("Disqualified: Maximum tab switches exceeded.");
         },
-        view === 'exam' // Only monitor when in exam view
+        location.pathname === '/exam' // Monitor only on exam route
     );
+
+    // Logout Handler
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        navigate('/login');
+    };
+
+    if (isLoading) {
+        return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-500">Loading...</div>;
+    }
 
     // Start Exam
     const startExam = () => {
         setIsExamStarted(true);
-        setView('exam');
+        navigate('/exam');
         requestFullscreen();
-    };
-
-    // Add Question Handler
-    const handleAddQuestion = (newQuestion) => {
-        setQuestions(prev => [...prev, newQuestion]);
-    };
-
-    // Update Question Handler
-    const handleUpdateQuestion = (updatedQuestion) => {
-        setQuestions(prev => prev.map(q => q.id === updatedQuestion.id ? updatedQuestion : q));
-    };
-
-    // Delete Question Handler
-    const handleDeleteQuestion = (questionId) => {
-        setQuestions(prev => prev.filter(q => q.id !== questionId));
     };
 
     // Run Code
@@ -120,67 +152,81 @@ export default function App() {
 
     return (
         <div className="min-h-screen bg-slate-950 text-slate-200 font-sans p-4 md:p-8">
-            <Navbar view={view} setView={setView} />
-
-            {/* VIEW: LANDING PAGE */}
-            {view === 'landing' && (
-                <Landing questions={questions} startExam={startExam} />
-            )}
-
-            {/* VIEW: EXAM WORKSPACE */}
-            {view === 'exam' && (
-                <ExamWorkspace
-                    selectedLang={selectedLang}
-                    setSelectedLang={setSelectedLang}
-                    isFullscreen={isFullscreen}
-                    warnings={warnings}
-                    code={code}
-                    setCode={setCode}
-                    isRunning={isRunning}
-                    runCode={runCode}
-                    output={output}
-                    leaderboard={leaderboard}
-                    requestFullscreen={requestFullscreen}
-                    onLanguageChange={(langId) => setCode(getDefaultCode(langId))}
+            {/* Show Navbar on all pages except Login and Exam (optional, but keep for consistency) */}
+            {location.pathname !== '/login' && (
+                <Navbar
+                    isAuthenticated={isAuthenticated}
+                    onLogout={handleLogout}
+                    isAdmin={location.pathname === '/admin'}
                 />
             )}
 
-            {/* VIEW: ADMIN PANEL */}
-            {view === 'admin' && (
-                <Admin
-                    questions={questions}
-                    leaderboard={leaderboard}
-                    onAddQuestion={handleAddQuestion}
-                    onUpdateQuestion={handleUpdateQuestion}
-                    onDeleteQuestion={handleDeleteQuestion}
-                />
-            )}
+            <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={
+                    isAuthenticated ? <Navigate to="/" replace /> : <Login />
+                } />
 
-            {/* VIEW: STUDENT DASHBOARD */}
-            {view === 'student-dashboard' && (
-                <StudentDashboard
-                    questions={questions}
-                    userStats={leaderboard.find(u => u.name.includes('You'))}
-                    onOpenProblem={(problem) => {
-                        setSelectedProblem(problem);
-                        setView('problem');
-                    }}
-                />
-            )}
+                {/* Public Landing (The old Landing.jsx) - renaming route to /welcome for clarity or keeping as option */}
+                <Route path="/welcome" element={<Landing questions={questions} startExam={startExam} />} />
 
-            {/* VIEW: PROBLEM WORKSPACE */}
-            {view === 'problem' && selectedProblem && (
-                <ProblemWorkspace
-                    problem={selectedProblem}
-                    userStats={leaderboard.find(u => u.name.includes('You'))}
-                    onBack={() => {
-                        setSelectedProblem(null);
-                        setView('student-dashboard');
-                    }}
-                />
-            )}
+                {/* Protected Routes */}
+                <Route element={<ProtectedLayout isAuthenticated={isAuthenticated} />}>
+                    {/* Dashboard is the new Home */}
+                    <Route path="/" element={
+                        <StudentDashboard
+                            questions={questions}
+                            userStats={leaderboard.find(u => u.name.includes('You'))}
+                            onOpenProblem={(problem) => {
+                                setSelectedProblem(problem);
+                                navigate(`/problem/${problem.id}`);
+                            }}
+                        />
+                    } />
 
-            {/* WARNING OVERLAY */}
+                    <Route path="/problem/:id" element={
+                        <ProblemWorkspace
+                            // We will need to resolve the problem from ID inside the component or here
+                            // For now passing "selectedProblem" state, but ideal is to read from URL params inside component
+                            problem={selectedProblem || questions[0]} // Fallback if direct access (to be fixed)
+                            userStats={leaderboard.find(u => u.name.includes('You'))}
+                            onBack={() => navigate('/')}
+                        />
+                    } />
+
+                    <Route path="/admin" element={
+                        <Admin
+                            questions={questions}
+                            leaderboard={leaderboard}
+                            onAddQuestion={(q) => setQuestions(prev => [...prev, q])}
+                            onUpdateQuestion={(q) => setQuestions(prev => prev.map(old => old.id === q.id ? q : old))}
+                            onDeleteQuestion={(id) => setQuestions(prev => prev.filter(q => q.id !== id))}
+                        />
+                    } />
+
+                    <Route path="/exam" element={
+                        <ExamWorkspace
+                            selectedLang={selectedLang}
+                            setSelectedLang={setSelectedLang}
+                            isFullscreen={isFullscreen}
+                            warnings={warnings}
+                            code={code}
+                            setCode={setCode}
+                            isRunning={isRunning}
+                            runCode={runCode}
+                            output={output}
+                            leaderboard={leaderboard}
+                            requestFullscreen={requestFullscreen}
+                            onLanguageChange={(langId) => setCode(getDefaultCode(langId))}
+                        />
+                    } />
+                </Route>
+
+                {/* Catch all */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+
+            {/* Warning Overlay */}
             <WarningOverlay
                 warnings={warnings}
                 isExamStarted={isExamStarted}
