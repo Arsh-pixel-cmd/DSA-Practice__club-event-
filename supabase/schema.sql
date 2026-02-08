@@ -38,7 +38,8 @@ create table if not exists public.questions (
   output_format text,
   constraints text,
   examples jsonb, -- Array of {input, output, explanation}
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint questions_title_key unique (title)
 );
 
 -- Enable RLS for Questions

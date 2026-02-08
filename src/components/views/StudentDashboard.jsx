@@ -1,15 +1,24 @@
 import React from 'react';
 import { LayoutDashboard, Code2, User, Settings, Search, Bell, ChevronRight, CheckCircle, FileCode } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import Logo from '../common/Logo';
 
 const Sidebar = ({ activeTab, setActiveTab }) => {
+    const navigate = useNavigate();
     const menuItems = [
         { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { id: 'problems', icon: Code2, label: 'Problems' },
         { id: 'profile', icon: User, label: 'Profile' },
-        { id: 'settings', icon: Settings, label: 'Settings' },
     ];
+
+    const handleNavigation = (id) => {
+        if (id === 'profile') {
+            navigate('/profile');
+        } else {
+            setActiveTab(id);
+        }
+    };
 
     return (
         <div className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col h-screen fixed left-0 top-0 z-50">
@@ -23,7 +32,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
                 {menuItems.map((item) => (
                     <button
                         key={item.id}
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => handleNavigation(item.id)}
                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group ${activeTab === item.id
                             ? 'bg-indigo-600 shadow-lg shadow-indigo-900/20 text-white'
                             : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -37,15 +46,15 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
 
             {/* User Profile Snippet (Bottom) */}
             <div className="p-4 border-t border-slate-800">
-                <div className="flex items-center gap-3 px-2">
+                <button onClick={() => navigate('/profile')} className="flex items-center gap-3 px-2 w-full hover:bg-slate-800/50 p-2 rounded-lg transition-colors text-left">
                     <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center">
                         <User size={20} className="text-slate-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                        <div className="text-sm font-bold text-white truncate">User Name</div>
+                        <div className="text-sm font-bold text-white truncate">User (You)</div>
                         <div className="text-xs text-slate-500 truncate">Student</div>
                     </div>
-                </div>
+                </button>
             </div>
         </div >
     );

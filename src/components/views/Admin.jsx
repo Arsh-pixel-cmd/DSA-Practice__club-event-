@@ -5,7 +5,7 @@ import AddQuestionModal from './AddQuestionModal';
 import SubmissionsModal from './SubmissionsModal';
 import SubmissionDetailModal from './SubmissionDetailModal';
 
-const Admin = ({ questions, leaderboard, onAddQuestion, onUpdateQuestion, onDeleteQuestion }) => {
+const Admin = ({ questions, leaderboard, onAddQuestion, onUpdateQuestion, onDeleteQuestion, onCleanupDuplicates }) => {
     const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
     const [activeMenuId, setActiveMenuId] = React.useState(null);
     const [editingQuestion, setEditingQuestion] = React.useState(null);
@@ -57,15 +57,23 @@ const Admin = ({ questions, leaderboard, onAddQuestion, onUpdateQuestion, onDele
                 <div className="md:col-span-7">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-2xl font-bold text-white">Problem Management</h2>
-                        <button
-                            onClick={() => {
-                                setEditingQuestion(null);
-                                setIsAddModalOpen(true);
-                            }}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
-                        >
-                            <PlusCircle size={18} /> Add New Question
-                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={onCleanupDuplicates}
+                                className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors border border-slate-700"
+                            >
+                                <Trash2 size={18} /> Clean Duplicates
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setEditingQuestion(null);
+                                    setIsAddModalOpen(true);
+                                }}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors"
+                            >
+                                <PlusCircle size={18} /> Add New Question
+                            </button>
+                        </div>
                     </div>
                     <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-visible"> {/* overflow-visible for dropdown */}
                         <table className="w-full text-left text-sm">

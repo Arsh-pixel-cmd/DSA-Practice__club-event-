@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, Settings, LogOut, Code2 } from 'lucide-react';
+import { Globe, Settings, LogOut, Code2, User } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import Logo from '../common/Logo';
 
@@ -18,6 +18,14 @@ const Navbar = ({ isAuthenticated, onLogout, isAdmin }) => {
             <div className="flex items-center gap-6">
                 {(isAuthenticated || isAdmin) && (
                     <>
+                        <Link
+                            to="/profile"
+                            className={`flex items-center gap-2 text-xs font-bold transition-colors uppercase tracking-widest ${location.pathname === '/profile' ? 'text-indigo-400' : 'text-slate-400 hover:text-white'}`}
+                        >
+                            <User size={16} />
+                            Profile
+                        </Link>
+
                         {isAdmin && (
                             <Link
                                 to={location.pathname === '/admin' ? "/" : "/admin"}

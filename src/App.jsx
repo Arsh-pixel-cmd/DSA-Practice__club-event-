@@ -15,6 +15,7 @@ const StudentDashboard = React.lazy(() => import('./components/views/StudentDash
 const ProblemWorkspace = React.lazy(() => import('./components/views/ProblemWorkspace'));
 const ExamWorkspace = React.lazy(() => import('./components/exam/ExamWorkspace'));
 const WarningOverlay = React.lazy(() => import('./components/exam/WarningOverlay'));
+const Profile = React.lazy(() => import('./components/views/Profile'));
 
 // Loading component
 const Loading = () => (
@@ -80,9 +81,24 @@ export default function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState(null);
 
-    // App State - now defaults to empty, fetched from DB
+    // App State - questions fetched from DB
     const [questions, setQuestions] = useState([]);
     const [leaderboard, setLeaderboard] = useState([]);
+
+    // Fetch Questions from DB
+    useEffect(() => {
+        const fetchQuestions = async () => {
+            const { data, error } = await supabase
+                .from('questions')
+                .select('*')
+                .order('id', { ascending: true });
+
+            if (error) console.error('Error fetching questions:', error);
+            else setQuestions(data || []);
+        };
+
+        fetchQuestions();
+    }, []);
 
     // ... existing exam state ...
     const [selectedProblem, setSelectedProblem] = useState(null); // Will be set after fetch
@@ -92,17 +108,30 @@ export default function App() {
     const [output, setOutput] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
 
-    // Mock Data - Initialize from localStorage if available
-    // const [questions, setQuestions] = useState(() => {
-    //     const saved = localStorage.getItem('dsa-questions');
-    //     return saved ? JSON.parse(saved) : INITIAL_QUESTIONS;
-    // });
-    // const [leaderboard, setLeaderboard] = useState(INITIAL_LEADERBOARD);
-
-    // Persist questions to localStorage
+    // Auth Check Effect
     useEffect(() => {
-        localStorage.setItem('dsa-questions', JSON.stringify(questions));
-    }, [questions]);
+        const checkSession = async () => {
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                setIsAuthenticated(!!session);
+                setUser(session?.user || null);
+            } catch (error) {
+                console.error("Error checking session:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        checkSession();
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setIsAuthenticated(!!session);
+            setUser(session?.user || null);
+            setIsLoading(false); // Ensure loading is off on change
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     // Anti-Cheat Hook - currently only relevant for Exam View
     const { warnings, setWarnings, isFullscreen, requestFullscreen } = useAntiCheat(
@@ -186,6 +215,9 @@ export default function App() {
                             />
                         } />
 
+                        {/* Profile Page */}
+                        <Route path="/profile" element={<Profile />} />
+
                         <Route path="/problem/:id" element={
                             <ProblemWorkspace
                                 // We will need to resolve the problem from ID inside the component or here
@@ -220,9 +252,107 @@ export default function App() {
                             <Admin
                                 questions={questions}
                                 leaderboard={leaderboard}
-                                onAddQuestion={(q) => setQuestions(prev => [...prev, q])}
-                                onUpdateQuestion={(q) => setQuestions(prev => prev.map(old => old.id === q.id ? q : old))}
-                                onDeleteQuestion={(id) => setQuestions(prev => prev.filter(q => q.id !== id))}
+                                onAddQuestion={async (newQuestion) => {
+                                    try {
+                                        const { data, error } = await supabase
+                                            .from('questions')
+                                            .insert([{
+                                                ...newQuestion,
+                                                // Ensure explicit fields if needed, or rely on object spread
+                                                examples: newQuestion.examples || []
+                                            }])
+                                            .select()
+                                            .single();
+
+                                        if (error) throw error;
+                                        setQuestions(prev => [...prev, data]);
+                                        alert('Question added successfully!');
+                                    } catch (err) {
+                                        console.error('Error adding question:', err);
+                                        alert('Failed to add question');
+                                    }
+                                }}
+                                onUpdateQuestion={async (updatedQuestion) => {
+                                    try {
+                                        const { error } = await supabase
+                                            .from('questions')
+                                            .update(updatedQuestion)
+                                            .eq('id', updatedQuestion.id);
+
+                                        if (error) throw error;
+                                        setQuestions(prev => prev.map(q => q.id === updatedQuestion.id ? updatedQuestion : q));
+                                        alert('Question updated successfully!');
+                                    } catch (err) {
+                                        console.error('Error updating question:', err);
+                                        alert('Failed to update question');
+                                    }
+                                }}
+                                onDeleteQuestion={async (id) => {
+                                    try {
+                                        const { error } = await supabase
+                                            .from('questions')
+                                            .delete()
+                                            .eq('id', id);
+
+                                        if (error) throw error;
+                                        setQuestions(prev => prev.filter(q => q.id !== id));
+                                        alert('Question deleted successfully!');
+                                    } catch (err) {
+                                        console.error('Error deleting question:', err);
+                                        alert('Failed to delete question');
+                                    }
+                                }}
+                                onCleanupDuplicates={async () => {
+                                    if (!window.confirm('Are you sure you want to remove duplicate questions? This cannot be undone.')) return;
+
+                                    try {
+                                        // 1. Fetch all questions (id, title)
+                                        const { data: allQuestions, error: fetchError } = await supabase
+                                            .from('questions')
+                                            .select('id, title')
+                                            .order('id', { ascending: true });
+
+                                        if (fetchError) throw fetchError;
+                                        if (!allQuestions || allQuestions.length === 0) {
+                                            alert('No questions found.');
+                                            return;
+                                        }
+
+                                        // 2. Identify duplicates
+                                        const seenTitles = new Set();
+                                        const duplicatesToDelete = [];
+
+                                        allQuestions.forEach(q => {
+                                            const normalizedTitle = q.title.trim().toLowerCase();
+                                            if (seenTitles.has(normalizedTitle)) {
+                                                duplicatesToDelete.push(q.id);
+                                            } else {
+                                                seenTitles.add(normalizedTitle);
+                                            }
+                                        });
+
+                                        if (duplicatesToDelete.length === 0) {
+                                            alert('No duplicates found.');
+                                            return;
+                                        }
+
+                                        // 3. Delete duplicates
+                                        const { error: deleteError } = await supabase
+                                            .from('questions')
+                                            .delete()
+                                            .in('id', duplicatesToDelete);
+
+                                        if (deleteError) throw deleteError;
+
+                                        // 4. Update local state
+                                        setQuestions(prev => prev.filter(q => !duplicatesToDelete.includes(q.id)));
+                                        alert(`Successfully removed ${duplicatesToDelete.length} duplicate questions.`);
+
+                                    } catch (err) {
+                                        console.error('Error cleaning duplicates:', err);
+                                        alert('Failed to clean duplicates. Check console for details.');
+                                    }
+                                }}
                             />
                         } />
                     </Route>
