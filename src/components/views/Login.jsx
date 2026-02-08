@@ -33,42 +33,10 @@ const Login = () => {
         // Check Access Code
         const secret = import.meta.env.VITE_ADMIN_SECRET;
         if (accessCode === secret) {
-            // Success: Store admin session in localStorage for this prototype
-            // In a real app, this would be a secure backend exchange or a specific auth account
-            // For now, we simulate an admin session that App.jsx will read
+
             localStorage.setItem('admin_access_token', 'valid');
 
-            // Also need to login as a user to use Supabase (anonymous or specific admin account)
-            // For this specific request "admin can login using that code", we will just authorize the UI
-            // But to use the DB, we need a supabase user.
-            // Simplified approach: Admin is just a UI state overlay on top of functionality. 
-            // BUT user said "sign in option... for admin". 
-            // If we don't sign in via Supabase, we can't do RLS.
-            // Let's assume the "Access Code" authorizes them to use a generic admin account or just sets a local "isAdmin" flag 
-            // combined with their personal login? 
-            // User request: "admin can login using that code". 
-            // Let's TREAT the code as the login credentials.
 
-            // To make RLS work, we might need to actually sign them in. 
-            // For now, let's set a local flag and redirect. 
-            // The RLS refactor to support "role" is in the plan, but we can't easily "sign in" with just a code unless we have a backend function.
-            // Compromise: Admin Code just sets the local admin View access. 
-            // But they still need to be authenticated to Supabase to read data? 
-            // Or maybe Admin doesn't need personal auth? 
-            // Let's ask them to sign in via Social first? No, separate option.
-
-            // Let's stick to the simplest interpretation:
-            // Admin Code -> Sets 'isAdmin' = true.
-            // For Supabase data, if RLS requires auth, this might fail unless public read is on.
-            // Our schema allows public read. Admin needs write. Write policy needs auth.
-            // Okay, let's keep it simple: Admin login creates a dummy session or requires social login + code?
-            // "one for user and other for admin panel" implies mutually exclusive.
-
-            // ACTUAL SOLUTION: 
-            // We will set a localStorage 'isAdmin' = 'true' and redirect.
-            // Changes to data will be done via client-side RLS which currently might block unauthenticated users.
-            // Warning: This is not secure for a real backend without a real user.
-            // But for this "code only" requirement:
             navigate('/admin');
         } else {
             alert("Invalid Access Code");
