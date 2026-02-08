@@ -15,6 +15,7 @@ const AddQuestionModal = ({ isOpen, onClose, onSave, initialData = null }) => {
         topics: [],
         examples: [{ input: '', output: '' }],
         constraints: '',
+        solution: '', // Reference Solution for AI
         allowedLanguages: LANGUAGES.reduce((acc, lang) => ({ ...acc, [lang.name]: true }), {}),
         timeLimit: '1.5',
         memoryLimit: '256',
@@ -208,6 +209,22 @@ const AddQuestionModal = ({ isOpen, onClose, onSave, initialData = null }) => {
                                             placeholder="2 <= nums.length <= 10^4&#10;-10^9 <= nums[i] <= 10^9"
                                             className="w-full h-32 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition-colors resize-none font-mono text-sm"
                                         />
+                                    </div>
+
+                                    {/* Reference Solution */}
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-slate-400 flex items-center justify-between">
+                                            <span>Reference Solution (AI Context)</span>
+                                            <span className="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">Admin Only</span>
+                                        </label>
+                                        <textarea
+                                            name="solution"
+                                            value={formData.solution}
+                                            onChange={handleInputChange}
+                                            placeholder="// Optimal solution code used by AI for grading context..."
+                                            className="w-full h-48 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-emerald-300 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-colors resize-none font-mono text-sm"
+                                        />
+                                        <p className="text-xs text-slate-500">This code is hidden from students but helps the AI grade partial submissions when Judge0 is unavailable.</p>
                                     </div>
                                 </div>
 

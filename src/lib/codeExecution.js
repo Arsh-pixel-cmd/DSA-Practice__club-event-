@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 const JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com/submissions';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 // Language IDs for Judge0
 const LANGUAGE_IDS = {
@@ -14,12 +14,17 @@ const LANGUAGE_IDS = {
 export const executeCode = async (code, language, problem) => {
     const languageId = LANGUAGE_IDS[language] || 63; // Default JS
 
-    // 1. Try Judge0
-    try {
-        const judgeResult = await runJudge0(code, languageId, problem);
-        if (judgeResult) return judgeResult;
-    } catch (e) {
-        console.warn("Judge0 failed, falling back to AI", e);
+    // 1. Try Judge0 if Key Exists
+    const judge0Key = import.meta.env.VITE_JUDGE0_KEY;
+    if (judge0Key) {
+        try {
+            const judgeResult = await runJudge0(code, languageId, problem);
+            if (judgeResult) return judgeResult;
+        } catch (e) {
+            console.warn("Judge0 failed, falling back to AI", e);
+        }
+    } else {
+        console.log("No Judge0 Key found, skipping to AI Grading...");
     }
 
     // 2. Fallback to AI
@@ -77,7 +82,7 @@ const runJudge0 = async (code, languageId, problem) => {
 };
 
 const runAIGrading = async (code, language, problem) => {
-    const apiKey = import.meta.env.VITE_GEMINI_KEY;
+    const apiKey = import.meta.env.VITE_GEMINI_KEY?.trim();
     if (!apiKey) {
         return {
             status: 'Error',
@@ -91,6 +96,11 @@ const runAIGrading = async (code, language, problem) => {
     
     Problem Description:
     ${problem.description}
+
+    ${problem.solution ? `
+    Reference Solution (Ground Truth):
+    ${problem.solution}
+    ` : ''}
 
     Language: ${language}
     
@@ -116,9 +126,17 @@ const runAIGrading = async (code, language, problem) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
+                contents: [{
+                    role: 'user',
+                    parts: [{ text: prompt }]
+                }]
             })
         });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Gemini API Error ${response.status}: ${errorText}`);
+        }
 
         const data = await response.json();
         const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
