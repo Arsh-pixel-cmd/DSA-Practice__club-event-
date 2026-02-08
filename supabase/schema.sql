@@ -3,6 +3,7 @@ create table public.profiles (
   id uuid references auth.users not null primary key,
   username text unique,
   avatar_url text,
+  role text default 'user' check (role in ('user', 'admin')),
   score integer default 0,
   updated_at timestamp with time zone,
   constraint username_length check (char_length(username) >= 3)

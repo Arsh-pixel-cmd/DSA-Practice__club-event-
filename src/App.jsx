@@ -8,6 +8,7 @@ import ProblemWorkspace from './components/views/ProblemWorkspace';
 import ExamWorkspace from './components/exam/ExamWorkspace';
 import WarningOverlay from './components/exam/WarningOverlay';
 import Login from './components/views/Login';
+import AdminGuard from './components/auth/AdminGuard';
 import { useAntiCheat } from './hooks/useAntiCheat';
 import { LANGUAGES, INITIAL_QUESTIONS, INITIAL_LEADERBOARD } from './lib/constants';
 import { executeCodeAction } from './lib/actions';
@@ -51,8 +52,8 @@ public class Main {
 };
 
 // Protected Layout Component
-const ProtectedLayout = ({ isAuthenticated, children }) => {
-    if (!isAuthenticated) {
+const ProtectedLayout = ({ isAuthenticated, isAdmin, children }) => {
+    if (!isAuthenticated && !isAdmin) {
         return <Navigate to="/login" replace />;
     }
     return children ? children : <Outlet />;
@@ -64,41 +65,30 @@ export default function App() {
 
     // Global State
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(() => {
+        return localStorage.getItem('admin_access_token') === 'valid';
+    });
     const [isLoading, setIsLoading] = useState(true);
     const [user, setUser] = useState(null);
 
-    // Auth Listener
-    useEffect(() => {
-        // Check active session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setIsAuthenticated(!!session);
-            setUser(session?.user ?? null);
-            setIsLoading(false);
-        });
+    // App State - now defaults to empty, fetched from DB
+    const [questions, setQuestions] = useState([]);
+    const [leaderboard, setLeaderboard] = useState([]);
 
-        // Listen for changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setIsAuthenticated(!!session);
-            setUser(session?.user ?? null);
-            setIsLoading(false);
-        });
-
-        return () => subscription.unsubscribe();
-    }, []);
-
-    const [selectedProblem, setSelectedProblem] = useState(null);
-    const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
-    const [code, setCode] = useState(getDefaultCode(LANGUAGES[0].id));
+    // ... existing exam state ...
+    const [selectedProblem, setSelectedProblem] = useState(null); // Will be set after fetch
+    const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]); // Kept LANGUAGES[0] for consistency with getDefaultCode
+    const [code, setCode] = useState(getDefaultCode(LANGUAGES[0].id)); // Initial code based on default language
     const [isExamStarted, setIsExamStarted] = useState(false);
     const [output, setOutput] = useState(null);
     const [isRunning, setIsRunning] = useState(false);
 
     // Mock Data - Initialize from localStorage if available
-    const [questions, setQuestions] = useState(() => {
-        const saved = localStorage.getItem('dsa-questions');
-        return saved ? JSON.parse(saved) : INITIAL_QUESTIONS;
-    });
-    const [leaderboard, setLeaderboard] = useState(INITIAL_LEADERBOARD);
+    // const [questions, setQuestions] = useState(() => {
+    //     const saved = localStorage.getItem('dsa-questions');
+    //     return saved ? JSON.parse(saved) : INITIAL_QUESTIONS;
+    // });
+    // const [leaderboard, setLeaderboard] = useState(INITIAL_LEADERBOARD);
 
     // Persist questions to localStorage
     useEffect(() => {
@@ -119,6 +109,8 @@ export default function App() {
     // Logout Handler
     const handleLogout = async () => {
         await supabase.auth.signOut();
+        localStorage.removeItem('admin_access_token');
+        setIsAdmin(false);
         navigate('/login');
     };
 
@@ -157,7 +149,7 @@ export default function App() {
                 <Navbar
                     isAuthenticated={isAuthenticated}
                     onLogout={handleLogout}
-                    isAdmin={location.pathname === '/admin'}
+                    isAdmin={isAdmin} // Pass admin state
                 />
             )}
 
@@ -170,8 +162,8 @@ export default function App() {
                 {/* Public Landing (The old Landing.jsx) - renaming route to /welcome for clarity or keeping as option */}
                 <Route path="/welcome" element={<Landing questions={questions} startExam={startExam} />} />
 
-                {/* Protected Routes */}
-                <Route element={<ProtectedLayout isAuthenticated={isAuthenticated} />}>
+                {/* Protected Routes - Student */}
+                <Route element={<ProtectedLayout isAuthenticated={isAuthenticated} isAdmin={isAdmin} />}>
                     {/* Dashboard is the new Home */}
                     <Route path="/" element={
                         <StudentDashboard
@@ -194,16 +186,6 @@ export default function App() {
                         />
                     } />
 
-                    <Route path="/admin" element={
-                        <Admin
-                            questions={questions}
-                            leaderboard={leaderboard}
-                            onAddQuestion={(q) => setQuestions(prev => [...prev, q])}
-                            onUpdateQuestion={(q) => setQuestions(prev => prev.map(old => old.id === q.id ? q : old))}
-                            onDeleteQuestion={(id) => setQuestions(prev => prev.filter(q => q.id !== id))}
-                        />
-                    } />
-
                     <Route path="/exam" element={
                         <ExamWorkspace
                             selectedLang={selectedLang}
@@ -218,6 +200,19 @@ export default function App() {
                             leaderboard={leaderboard}
                             requestFullscreen={requestFullscreen}
                             onLanguageChange={(langId) => setCode(getDefaultCode(langId))}
+                        />
+                    } />
+                </Route>
+
+                {/* Protected Routes - Admin */}
+                <Route element={<AdminGuard isAdmin={isAdmin} />}>
+                    <Route path="/admin" element={
+                        <Admin
+                            questions={questions}
+                            leaderboard={leaderboard}
+                            onAddQuestion={(q) => setQuestions(prev => [...prev, q])}
+                            onUpdateQuestion={(q) => setQuestions(prev => prev.map(old => old.id === q.id ? q : old))}
+                            onDeleteQuestion={(id) => setQuestions(prev => prev.filter(q => q.id !== id))}
                         />
                     } />
                 </Route>
